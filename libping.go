@@ -20,6 +20,9 @@ type Response struct {
     Delay       time.Duration
     Error       error
     Destination string
+    Seq         int
+    Readsize    int
+    Writesize   int
 }
 
 func makePingRequest(id, seq, pktlen int, filler []byte) []byte {
@@ -61,8 +64,8 @@ func parsePingReply(p []byte) (id, seq int) {
     return
 }
 
-// Pingone send one ICMP echo packet to the destination, and return the latency.
-func Pingone(destination string) (time.Duration, error) {
+// Pingonce send one ICMP echo packet to the destination, and return the latency.
+func Pingonce(destination string) (time.Duration, error) {
     raddr, err := net.ResolveIPAddr("ip", destination)
     if err != nil {
         return 0, err
@@ -104,19 +107,19 @@ func Pingone(destination string) (time.Duration, error) {
     }
 }
 
-// Pinguntil will send ICMP echo packets to the destination until the counter is done, or forever if the counter is set to 0.
-// The replies are given in the Response format, with the latency and the error, if one was got.
+// Pinguntil will send ICMP echo packets to the destination until the counter is reached, or forever if the counter is set to 0.
+// The replies are given in the Response format.
 // You can also adjust the delay between two ICMP echo packets with the variable delay.
 func Pinguntil(destination string, count int, response chan Response, delay time.Duration) {
     raddr, err := net.ResolveIPAddr("ip", destination)
     if err != nil {
-        response <- Response{Delay: 0, Error: err, Destination: destination}
+        response <- Response{Delay: 0, Error: err, Destination: destination, Seq: 0}
         return
     }
 
     ipconn, err := net.Dial("ip:icmp", raddr.IP.String())
     if err != nil {
-        response <- Response{Delay: 0, Error: err, Destination: destination}
+        response <- Response{Delay: 0, Error: err, Destination: destination, Seq: 0}
         return
     }
 
@@ -129,9 +132,9 @@ func Pinguntil(destination string, count int, response chan Response, delay time
 
         start := time.Now()
 
-        n, err := ipconn.Write(sendpkt)
-        if err != nil || n != pingpktlen {
-            response <- Response{Delay: 0, Error: err, Destination: destination}
+        writesize, err := ipconn.Write(sendpkt)
+        if err != nil || writesize != pingpktlen {
+            response <- Response{Delay: 0, Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: 0}
             time.Sleep(delay)
             continue
         }
@@ -140,15 +143,15 @@ func Pinguntil(destination string, count int, response chan Response, delay time
 
         resp := make([]byte, 1024)
         for {
-            _, err := ipconn.Read(resp)
+            readsize, err := ipconn.Read(resp)
 
             if resp[1] != ICMP_ECHO_REPLY {
                 continue
             } else if err != nil {
-                response <- Response{Delay: 0, Error: err, Destination: destination}
+                response <- Response{Delay: 0, Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
             } else {
-                response <- Response{Delay: time.Now().Sub(start), Error: err, Destination: destination}
+                response <- Response{Delay: time.Now().Sub(start), Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
             }
         }
