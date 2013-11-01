@@ -106,7 +106,7 @@ func Pingone(destination string) (time.Duration, error) {
 
 // Pinguntil will send ICMP echo packets to the destination until the counter is done, or forever if the counter is set to 0.
 // The replies are given in the Response format, with the latency and the error, if one was got.
-// You can also adjust the delay between two ICMP echo packets with the variable delay
+// You can also adjust the delay between two ICMP echo packets with the variable delay.
 func Pinguntil(destination string, count int, response chan Response, delay time.Duration) {
     raddr, err := net.ResolveIPAddr("ip", destination)
     if err != nil {
