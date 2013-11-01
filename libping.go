@@ -114,12 +114,14 @@ func Pinguntil(destination string, count int, response chan Response, delay time
     raddr, err := net.ResolveIPAddr("ip", destination)
     if err != nil {
         response <- Response{Delay: 0, Error: err, Destination: destination, Seq: 0}
+        close(response)
         return
     }
 
     ipconn, err := net.Dial("ip:icmp", raddr.IP.String())
     if err != nil {
-        response <- Response{Delay: 0, Error: err, Destination: destination, Seq: 0}
+        response <- Response{Delay: 0, Error: err, Destination: raddr.IP.String(), Seq: 0}
+        close(response)
         return
     }
 
@@ -134,7 +136,7 @@ func Pinguntil(destination string, count int, response chan Response, delay time
 
         writesize, err := ipconn.Write(sendpkt)
         if err != nil || writesize != pingpktlen {
-            response <- Response{Delay: 0, Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: 0}
+            response <- Response{Delay: 0, Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: 0}
             time.Sleep(delay)
             continue
         }
@@ -148,10 +150,10 @@ func Pinguntil(destination string, count int, response chan Response, delay time
             if resp[1] != ICMP_ECHO_REPLY {
                 continue
             } else if err != nil {
-                response <- Response{Delay: 0, Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: readsize}
+                response <- Response{Delay: 0, Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
             } else {
-                response <- Response{Delay: time.Now().Sub(start), Error: err, Destination: destination, Seq: seq, Writesize: writesize, Readsize: readsize}
+                response <- Response{Delay: time.Now().Sub(start), Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
             }
         }
