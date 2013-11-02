@@ -58,9 +58,10 @@ func makePingRequest(id, seq, pktlen int, filler []byte) []byte {
     return p
 }
 
-func parsePingReply(p []byte) (id, seq int) {
-    id = int(p[4])<<8 | int(p[5])
-    seq = int(p[6])<<8 | int(p[7])
+func parsePingReply(p []byte) (id, seq, code int) {
+    id = int(p[24])<<8 | int(p[25])
+    seq = int(p[26])<<8 | int(p[27])
+    code = int(p[21])
     return
 }
 
@@ -128,8 +129,10 @@ func Pinguntil(destination string, count int, response chan Response, delay time
     sendid := os.Getpid() & 0xffff
     pingpktlen := 64
     seq := 0
+    var elapsed time.Duration = 0
 
     for ; seq < count || count == 0; seq++ {
+        elapsed = 0
         sendpkt := makePingRequest(sendid, seq, pingpktlen, []byte("Go Ping"))
 
         start := time.Now()
@@ -147,17 +150,21 @@ func Pinguntil(destination string, count int, response chan Response, delay time
         for {
             readsize, err := ipconn.Read(resp)
 
-            if resp[1] != ICMP_ECHO_REPLY {
-                continue
-            } else if err != nil {
+            elapsed = time.Now().Sub(start)
+
+            rid, rseq, rcode := parsePingReply(resp)
+
+            if err != nil {
                 response <- Response{Delay: 0, Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
+            } else if rcode != ICMP_ECHO_REPLY || rseq != seq || rid != sendid {
+                continue
             } else {
-                response <- Response{Delay: time.Now().Sub(start), Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: readsize}
+                response <- Response{Delay: elapsed, Error: err, Destination: raddr.IP.String(), Seq: seq, Writesize: writesize, Readsize: readsize}
                 break
             }
         }
-        time.Sleep(delay)
+        time.Sleep(delay - elapsed)
     }
     close(response)
 }
