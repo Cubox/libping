@@ -133,6 +133,9 @@ func Pinguntil(destination string, count int, response chan Response, delay time
 
     for ; seq < count || count == 0; seq++ {
         elapsed = 0
+        if seq > 65535 { // The two bytes for seq. Don't overflow!
+            seq = 0
+        }
         sendpkt := makePingRequest(sendid, seq, pingpktlen, []byte("Go Ping"))
 
         start := time.Now()
