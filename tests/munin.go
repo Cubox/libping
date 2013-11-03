@@ -1,3 +1,12 @@
+/*
+This is a munin plugin.
+For adding hosts to ping, add in conf:
+[ping]
+user root
+group root
+env.hosts ping.me and.me
+*/
+
 package main
 
 import (
