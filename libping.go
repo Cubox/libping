@@ -66,46 +66,12 @@ func parsePingReply(p []byte) (id, seq, code int) {
 }
 
 // Pingonce send one ICMP echo packet to the destination, and return the latency.
+// The function is made to be simple. Simple request, simple reply.
 func Pingonce(destination string) (time.Duration, error) {
-    raddr, err := net.ResolveIPAddr("ip", destination)
-    if err != nil {
-        return 0, err
-    }
-
-    ipconn, err := net.Dial("ip:icmp", raddr.IP.String())
-
-    if err != nil {
-        return 0, err
-    }
-
-    defer ipconn.Close()
-
-    sendid := os.Getpid() & 0xffff
-    pingpktlen := 64
-
-    sendpkt := makePingRequest(sendid, 0, pingpktlen, []byte("Go Ping"))
-
-    start := time.Now()
-    n, err := ipconn.Write(sendpkt)
-
-    if err != nil || n != pingpktlen {
-        return 0, err
-    }
-
-    ipconn.SetReadDeadline(time.Now().Add(time.Second * 1))
-
-    resp := make([]byte, 1024)
-    for {
-        _, err := ipconn.Read(resp)
-
-        if resp[1] != ICMP_ECHO_REPLY {
-            continue
-        } else if err != nil {
-            return 0, err
-        } else {
-            return time.Now().Sub(start), nil
-        }
-    }
+    response := make(chan Response)
+    go Pinguntil(destination, 1, response, time.Second)
+    answer := <-response
+    return answer.Delay, answer.Error
 }
 
 // Pinguntil will send ICMP echo packets to the destination until the counter is reached, or forever if the counter is set to 0.
